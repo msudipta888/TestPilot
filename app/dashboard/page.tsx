@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation"
+import { auth } from "@/lib/auth"
 import { Sidebar } from "@/components/sidebar"
 import { ConnectRepo } from "@/components/dashboard/connect-repo"
 import { KpiCards } from "@/components/dashboard/kpi-cards"
@@ -5,7 +7,9 @@ import { LiveAgentActivity } from "@/components/dashboard/live-agent-activity"
 import { TestSuiteTable } from "@/components/dashboard/test-suite-table"
 import { ChevronRight, Home } from "lucide-react"
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const session = await auth()
+  if (!session) redirect("/login")
   return (
     <div className="flex h-screen">
       <Sidebar />
