@@ -33,7 +33,21 @@ export default function RepoSelector() {
         }
         fetchUserRepos();
     }, []);
-
+    const selectRepo = async () => {
+        const res = await fetch("/api/selectedRepo", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                repoId: selectedRepo,
+            }),
+        });
+        if (res.ok) {
+            const data = await res.json();
+            console.log(data);
+        }
+    }
     if (loading) {
         return (
             <div className="flex items-center gap-2 text-muted-foreground p-4">
@@ -57,7 +71,7 @@ export default function RepoSelector() {
             >
                 <option value="">-- Choose a codebase to ingest --</option>
                 {repos.map((repo) => (
-                    <option key={repo.id} value={repo.fullName}>
+                    <option key={repo.id} value={repo.fullName} onClick={selectRepo}>
                         {repo.fullName} ({repo.defaultBranch})
                     </option>
                 ))}
