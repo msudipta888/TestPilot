@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, GitBranch } from "lucide-react";
 
 interface Repository {
@@ -13,6 +14,7 @@ interface Repository {
 }
 
 export default function RepoSelector() {
+    const router = useRouter();
     const [repos, setRepos] = useState<Repository[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedRepo, setSelectedRepo] = useState<string>("");
@@ -77,14 +79,25 @@ export default function RepoSelector() {
                 ))}
             </select>
 
-            {selectedRepo && (
-                <button
-                    onClick={() => console.log("Proceeding to ingest context for:", selectedRepo)}
-                    className="mt-4 cursor-pointer w-full bg-primary text-primary-foreground font-medium rounded-lg py-2 hover:opacity-90 transition"
-                >
-                    Ingest & Analyze Codebase
-                </button>
-            )}
+            {selectedRepo && (() => {
+                const repo = repos.find((r) => r.fullName === selectedRepo);
+                return (
+                    <button
+                        onClick={() => {
+                            const params = new URLSearchParams({
+                                fullName: repo?.fullName ?? "",
+                                branch: repo?.defaultBranch ?? "",
+                                url: repo?.url ?? "",
+                                id: String(repo?.id ?? ""),
+                            });
+                            router.push(`/repoInfo?${params.toString()}`);
+                        }}
+                        className="mt-4 cursor-pointer w-full bg-primary text-primary-foreground font-medium rounded-lg py-2 hover:opacity-90 transition"
+                    >
+                        Ingest & Analyze Codebase
+                    </button>
+                );
+            })()}
         </div>
     );
 }

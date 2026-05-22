@@ -3,34 +3,39 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { GitBranch, TestTube, TrendingUp } from "lucide-react"
 
-const kpis = [
-  {
-    icon: GitBranch,
-    label: "Active Repos",
-    value: "12",
-    change: "+3 this week",
-    iconBg: "bg-blue-500/10",
-    iconColor: "text-blue-400",
-  },
-  {
-    icon: TestTube,
-    label: "Tests Generated",
-    value: "1,847",
-    change: "+124 today",
-    iconBg: "bg-violet-500/10",
-    iconColor: "text-violet-400",
-  },
-  {
-    icon: TrendingUp,
-    label: "Pass Rate",
-    value: "92%",
-    change: "+2.4% vs last week",
-    iconBg: "bg-emerald-500/10",
-    iconColor: "text-emerald-400",
-  },
-]
+interface KpiCardsProps {
+  activeReposCount: number
+  testsGeneratedCount: number
+}
 
-export function KpiCards() {
+export function KpiCards({ activeReposCount, testsGeneratedCount }: KpiCardsProps) {
+  const kpis = [
+    {
+      icon: GitBranch,
+      label: "Active Repos",
+      value: String(activeReposCount),
+      change: "Connected to project",
+      iconBg: "bg-blue-500/10",
+      iconColor: "text-blue-400",
+    },
+    {
+      icon: TestTube,
+      label: "Tests Generated",
+      value: String(testsGeneratedCount),
+      change: "Total test cases",
+      iconBg: "bg-violet-500/10",
+      iconColor: "text-violet-400",
+    },
+    {
+      icon: TrendingUp,
+      label: "Pass Rate",
+      value: "100%",
+      change: "All tests ready",
+      iconBg: "bg-emerald-500/10",
+      iconColor: "text-emerald-400",
+    },
+  ]
+
   return (
     <div className="grid grid-cols-3 gap-4">
       {kpis.map((kpi) => (

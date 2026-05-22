@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
 import { Sidebar } from "@/components/sidebar"
 import { ConnectRepo } from "@/components/dashboard/connect-repo"
 import { KpiCards } from "@/components/dashboard/kpi-cards"
@@ -10,6 +11,23 @@ import { ChevronRight, Home } from "lucide-react"
 export default async function DashboardPage() {
   const session = await auth()
   if (!session) redirect("/login")
+
+  const userId = session.user?.id || ""
+
+  // Fetch real counts and test cases from database
+  const activeReposCount = await prisma.selectedRepo.count({
+    where: { userId }
+  })
+
+  const testsGeneratedCount = await prisma.generatedTests.count({
+    where: { userId }
+  })
+
+  const testCases = await prisma.generatedTests.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+  })
+
   return (
     <div className="flex h-screen">
       <Sidebar />
@@ -29,12 +47,15 @@ export default async function DashboardPage() {
           <ConnectRepo />
 
           {/* Section 2: KPIs + Live Activity */}
-          <KpiCards />
+          <KpiCards 
+            activeReposCount={activeReposCount} 
+            testsGeneratedCount={testsGeneratedCount} 
+          />
 
           <LiveAgentActivity />
 
           {/* Section 3: Test Suite Table */}
-          <TestSuiteTable />
+          <TestSuiteTable testCases={testCases} />
         </div>
       </main>
     </div>

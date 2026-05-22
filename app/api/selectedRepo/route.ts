@@ -3,9 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
 import AdmZip from "adm-zip";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { randomUUID } from "crypto";
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY!,
+
 });
 const ALLOWED_EXTENSIONS = [
     ".js",
@@ -69,10 +72,52 @@ function isUsefulFile(path: string) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { userId, repoId, owner, repo, branch, githubToken } = body;
+        const { userId, repoId, owner, repo, branch, githubToken, url } = body;
         if (!userId || !repoId || !owner || !repo || !branch || !githubToken) {
             return NextResponse.json({ error: "All fields are required" }, { status: 400 });
         }
+
+        // Resolve user ID
+        const session = await auth();
+        let dbUserId = "";
+        if (session?.user?.id) {
+            dbUserId = session.user.id;
+        } else {
+            // Fallback: look up user by id (passed in userId parameter from client)
+            const user = await prisma.user.findFirst({
+                where: { id: userId },
+            });
+            if (user) {
+                dbUserId = user.id;
+            }
+        }
+
+        if (!dbUserId) {
+            return NextResponse.json({ error: "User not found in database. Please log in again." }, { status: 400 });
+        }
+
+        // Upsert selected repository
+        const githubId = parseInt(repoId, 10);
+        if (isNaN(githubId)) {
+            return NextResponse.json({ error: "Invalid repository ID" }, { status: 400 });
+        }
+
+        let dbRepo = await prisma.selectedRepo.findUnique({
+            where: { githubRepoId: githubId },
+        });
+
+        if (!dbRepo) {
+            dbRepo = await prisma.selectedRepo.create({
+                data: {
+                    githubRepoId: githubId,
+                    repoName: `${owner}/${repo}`,
+                    repoUrl: url || `https://github.com/${owner}/${repo}`,
+                    defaultBranch: branch,
+                    userId: dbUserId,
+                },
+            });
+        }
+
         // --- STEP 1 & 2 UPGRADE: ONE-SHOT ZIP DOWNLOAD & RAM EXTRACTION ---
         const archiveUrl = `https://api.github.com/repos/${owner}/${repo}/zipball/${branch}`;
         const archiveResponse = await fetch(archiveUrl, {
@@ -122,12 +167,11 @@ Branch: ${branch}
 Repository File Context:
 ${repoContext}
 
-Generate 5 to 10 test cases.
-...
+Generate 5 to 7 test cases.
 `;
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.5-flash",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -163,8 +207,9 @@ Generate 5 to 10 test cases.
         }
         const insertTestCases = generatedTests.map((test: any) => {
             return {
-                userId,
-                repoId,
+                testCaseId: `tc-${randomUUID()}`,
+                userId: dbUserId,
+                repoId: dbRepo.id,
                 title: test.title,
                 description: test.description,
                 type: test.type,
@@ -172,9 +217,12 @@ Generate 5 to 10 test cases.
                 targetRoute: test.targetRoute,
                 targetFiles: test.targetFiles,
                 expectedResult: test.expectedResult,
+                repoName: repo,
+                repoOwner: owner,
+                branch,
             }
         });
-        await prisma.generatedTests.create({
+        await prisma.generatedTests.createMany({
             data: insertTestCases
         });
         return NextResponse.json({

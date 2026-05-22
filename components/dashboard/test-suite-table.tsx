@@ -94,9 +94,17 @@ const statusConfig = {
     label: "Running in Cloud",
     variant: "warning" as const,
   },
+  generated: {
+    label: "Generated",
+    variant: "secondary" as const,
+  },
 }
 
-export function TestSuiteTable() {
+interface TestSuiteTableProps {
+  testCases: any[]
+}
+
+export function TestSuiteTable({ testCases }: TestSuiteTableProps) {
   return (
     <div className="rounded-xl border border-border/50 bg-card">
       <div className="flex items-center justify-between border-b border-border/50 px-5 py-4">
@@ -106,69 +114,84 @@ export function TestSuiteTable() {
             Real-time results from the latest test suite run
           </p>
         </div>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Play className="h-3.5 w-3.5" />
-          Run All
-        </Button>
+        {testCases.length > 0 && (
+          <Button variant="outline" size="sm" className="gap-2">
+            <Play className="h-3.5 w-3.5" />
+            Run All
+          </Button>
+        )}
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="w-[240px]">Test Name</TableHead>
-            <TableHead>Target Route</TableHead>
-            <TableHead>Browser</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {tests.map((test) => (
-            <TableRow key={test.id} className="group">
-              <TableCell className="font-medium">{test.name}</TableCell>
-              <TableCell>
-                <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                  {test.route}
-                </code>
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                {test.browser}
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant={statusConfig[test.status].variant}
-                  className={cn(
-                    "gap-1.5",
-                    test.status === "running" && "animate-pulse"
-                  )}
-                >
-                  {test.status === "running" && (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  )}
-                  {statusConfig[test.status].label}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                  >
-                    <Play className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </TableCell>
+      {testCases.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-8 text-center text-sm text-muted-foreground">
+          <p className="mb-2">No test cases generated yet.</p>
+          <a href="/repos" className="text-primary hover:underline font-medium">
+            Connect a repository to get started →
+          </a>
+        </div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-[240px]">Test Name</TableHead>
+              <TableHead>Target Route</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Priority</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {testCases.map((test) => (
+              <TableRow key={test.id} className="group">
+                <TableCell className="font-medium">{test.title}</TableCell>
+                <TableCell>
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                    {test.targetRoute}
+                  </code>
+                </TableCell>
+                <TableCell>
+                  <span className="text-xs text-muted-foreground capitalize">{test.type}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-xs text-muted-foreground capitalize">{test.priority}</span>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={statusConfig[test.status as keyof typeof statusConfig]?.variant || "secondary"}
+                    className={cn(
+                      "gap-1.5",
+                      test.status === "running" && "animate-pulse"
+                    )}
+                  >
+                    {test.status === "running" && (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    )}
+                    {statusConfig[test.status as keyof typeof statusConfig]?.label || test.status}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
     </div>
   )
 }

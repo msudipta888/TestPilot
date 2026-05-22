@@ -1,6 +1,7 @@
 // src/app/api/repos/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
     // Pull the current user session securely on the server side
@@ -25,16 +26,34 @@ export async function GET() {
 
         const data = await response.json();
 
-        // Clean the payload to send only what the frontend dashboard requires
+        // Keep only essential fields
         const refinedRepos = data.map((repo: any) => ({
             id: repo.id,
-            name: repo.name,
             fullName: repo.full_name,
-            isPrivate: repo.private,
             url: repo.html_url,
             defaultBranch: repo.default_branch,
-            description: repo.description,
         }));
+
+        // Use userId already set in session from JWT token
+        const dbUserId = session.user?.id;
+        console.log('dbUserId from session:', dbUserId);
+
+        if (dbUserId) {
+            await Promise.all(
+                refinedRepos.map((repo: any) =>
+                    prisma.reposInfo.upsert({
+                        where: { githubRepoId: repo.id },
+                        update: { fullName: repo.fullName, defaultBranch: repo.defaultBranch },
+                        create: {
+                            githubRepoId: repo.id,
+                            fullName: repo.fullName,
+                            defaultBranch: repo.defaultBranch,
+                            userId: dbUserId,
+                        },
+                    })
+                )
+            );
+        }
 
         return NextResponse.json(refinedRepos);
     } catch (error: any) {
