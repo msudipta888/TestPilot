@@ -20,6 +20,8 @@ model User {
   selectedRepo  selectedRepo[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+
+  @@index([id])
 }
 
 model Account {
@@ -47,10 +49,13 @@ model reposInfo {
   githubRepoId  Int      @unique
   fullName      String
   defaultBranch String   @default("main")
+  content       String?  @db.Text
   userId        String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, githubRepoId])
 }
 
 model selectedRepo {
@@ -62,6 +67,7 @@ model selectedRepo {
   isPrivate         Boolean          @default(false)
   userId            String
   gloablInstruction String?
+  deploymentUrl     String?
   generatedTest     generatedTests[]
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt

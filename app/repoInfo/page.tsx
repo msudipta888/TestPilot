@@ -30,6 +30,8 @@ export default function RepoInfoPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [targetUrlOverride, setTargetUrlOverride] = useState("")
+  const [deploymentUrl, setDeploymentUrl] = useState("")
+  const [savingDeployment, setSavingDeployment] = useState(false)
   const [executionResults, setExecutionResults] = useState<Record<string, {
     status: string
     logs: string
@@ -61,7 +63,25 @@ export default function RepoInfoPage() {
     setSuccess(null)
     setTestCases([])
     setSelectedTestCaseIds(new Set())
+    setDeploymentUrl("")
+    setTargetUrlOverride("")
   }, [fullName])
+
+  // Fetch deployment URL when repo changes
+  useEffect(() => {
+    (async () => {
+      if (!id) return
+      try {
+        const res = await fetch(`/api/selectedRepo?githubRepoId=${encodeURIComponent(id)}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.deploymentUrl) {
+          setDeploymentUrl(data.deploymentUrl)
+          setTargetUrlOverride(data.deploymentUrl)
+        }
+      } catch { /* ignore */ }
+    })()
+  }, [id])
 
   const toggleSelectTestCase = (id: string) => {
     setSelectedTestCaseIds((prev) => {
@@ -165,7 +185,7 @@ export default function RepoInfoPage() {
     setSuccess(null)
     setTestCases([])
     setSelectedTestCaseIds(new Set())
-
+    console.log('repo id:', id)
     try {
       const res = await fetch("/api/selectedRepo", {
         method: "POST",
@@ -193,6 +213,43 @@ export default function RepoInfoPage() {
       setError(err.message || "Request failed")
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const saveDeploymentUrl = async () => {
+    setSavingDeployment(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      // Find the internal repoId from the first test case or fetch it
+      let repoId = ""
+      if (testCases.length > 0) {
+        const res = await fetch("/api/selectedRepo?githubRepoId=" + encodeURIComponent(id))
+        if (res.ok) {
+          const data = await res.json()
+          repoId = data.repo?.id ?? ""
+        }
+      }
+      if (!repoId) {
+        setError("Generate test cases first to save deployment URL")
+        return
+      }
+      const res = await fetch("/api/selectedRepo", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repoId, deploymentUrl }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        setError(err.error || "Failed to save deployment URL")
+        return
+      }
+      setTargetUrlOverride(deploymentUrl)
+      setSuccess("Deployment URL saved successfully")
+    } catch (err: any) {
+      setError(err.message || "Failed to save deployment URL")
+    } finally {
+      setSavingDeployment(false)
     }
   }
 
@@ -302,56 +359,94 @@ export default function RepoInfoPage() {
 
               {testCases.length > 0 && !generating && (
                 <div className="space-y-4">
-                  <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end border-b border-border/50 pb-4">
-                    <div className="flex-1 w-full max-w-md space-y-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Target Base URL Override
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. http://localhost:5173 or public URL"
-                        value={targetUrlOverride}
-                        onChange={(e) => setTargetUrlOverride(e.target.value)}
-                        className="w-full rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
-                      />
-                      <p className="text-[11px] text-muted-foreground">
-                        Overrides the host/domain of the generated test routes before execution.
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="select-all"
-                          checked={selectedTestCaseIds.size === testCases.length}
-                          onChange={handleSelectAll}
-                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer bg-card"
-                        />
-                        <label htmlFor="select-all" className="text-sm font-medium text-foreground cursor-pointer select-none">
-                          Select All ({selectedTestCaseIds.size} / {testCases.length})
+                  {/* Deployment URL Section */}
+                  <div className="rounded-lg border border-border bg-card p-4">
+                    <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
+                      <div className="flex-1 w-full max-w-md space-y-1.5">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Deployment URL <span className="text-red-400">*</span>
                         </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. https://your-app.vercel.app"
+                          value={deploymentUrl}
+                          onChange={(e) => setDeploymentUrl(e.target.value)}
+                          className="w-full rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Set the deployed URL for this repository. Tests will only execute against deployed projects.
+                        </p>
                       </div>
                       <button
-                        onClick={runSelectedTestCases}
-                        disabled={savingSelected || selectedTestCaseIds.size === 0}
+                        onClick={saveDeploymentUrl}
+                        disabled={savingDeployment || !deploymentUrl}
                         className="flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition disabled:opacity-50"
                       >
-                        {savingSelected ? (
+                        {savingDeployment ? (
                           <>
                             <Loader2 className="h-3 w-3 animate-spin" />
-                            Running on Browserbase...
+                            Saving...
                           </>
                         ) : (
-                          <>
-                            <Play className="h-3.5 w-3.5 fill-current" />
-                            Run Selected Tests
-                          </>
+                          "Save Deployment URL"
                         )}
                       </button>
                     </div>
                   </div>
-                  <div className="grid gap-3">
+
+                  {/* Test cases shown only when deployment URL is set */}
+                  {deploymentUrl ? (
+                    <>
+                      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end border-b border-border/50 pb-4">
+                        <div className="flex-1 w-full max-w-md space-y-1.5">
+                          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Target Base URL Override (runs at: <span className="text-primary">{targetUrlOverride || deploymentUrl}</span>)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. http://localhost:5173"
+                            value={targetUrlOverride}
+                            onChange={(e) => setTargetUrlOverride(e.target.value)}
+                            className="w-full rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Overrides the deployment URL above (e.g. for local testing against a dev server).
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="select-all"
+                              checked={selectedTestCaseIds.size === testCases.length}
+                              onChange={handleSelectAll}
+                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer bg-card"
+                            />
+                            <label htmlFor="select-all" className="text-sm font-medium text-foreground cursor-pointer select-none">
+                              Select All ({selectedTestCaseIds.size} / {testCases.length})
+                            </label>
+                          </div>
+                          <button
+                            onClick={runSelectedTestCases}
+                            disabled={savingSelected || selectedTestCaseIds.size === 0}
+                            className="flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition disabled:opacity-50"
+                          >
+                            {savingSelected ? (
+                              <>
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Running on Browserbase...
+                              </>
+                            ) : (
+                              <>
+                                <Play className="h-3.5 w-3.5 fill-current" />
+                                Run Selected Tests
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid gap-3">
                     {testCases.map((tc) => (
                       <div
                         key={tc.testCaseId}
@@ -426,6 +521,13 @@ export default function RepoInfoPage() {
                       </div>
                     ))}
                   </div>
+                    </>
+                    ) : (
+                    <div className="flex items-center gap-3 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      Set a Deployment URL above to run tests against your deployed project.
+                    </div>
+                    )}
                 </div>
               )}
             </>
